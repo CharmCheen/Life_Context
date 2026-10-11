@@ -1,0 +1,107 @@
+/**
+ * OpenSelf — Main Entry
+ * Re-exports all public modules
+ */
+
+export {
+    parseWhatsApp,
+    parseTelegram,
+    parseGeneric,
+    splitBySender,
+    detectUserName,
+} from './parsers/index.js';
+export { extractPersonality } from './personality/extractor.js';
+export { createFingerprint } from './personality/fingerprint.js';
+export { generateSoulMd, saveSoulMd } from './personality/soul-generator.js';
+export { CloneBrain, loadSoul } from './brain/clone.js';
+export { createProvider, autoDetectProvider } from './brain/router.js';
+export { HumanMimicry } from './mimicry/humanlike.js';
+export { SafetyGuard } from './safety/guard.js';
+export { ReviewQueue } from './safety/review-queue.js';
+export { loadConfig } from './config/loader.js';
+export { ContextStore, VAULT_SCHEMA_VERSION } from './context/store.js';
+export {
+    normalizeMemory,
+    memoryInputSchema,
+    memoryContentHash,
+    contextBlockHash,
+    MEMORY_TYPES,
+    SENSITIVITY_LEVELS,
+    SOURCE_TRUST_LEVELS,
+} from './context/schema.js';
+export { createContextMcpServer, runContextMcpServer } from './context/mcp.js';
+export { createMcpHttpApp, runContextMcpHttpServer } from './context/mcp-http.js';
+export { ContextImporter, detectImportFormat, chunkDocument } from './context/importer.js';
+export {
+    exportMemories,
+    exportPayloadHash,
+    parseContextExport,
+    validateContextExport,
+    serializeMemory,
+    CONTEXT_EXPORT_FORMAT,
+    CONTEXT_EXPORT_VERSION,
+} from './context/exporter.js';
+export {
+    loadSigningIdentity,
+    signPayload,
+    verifyPayload,
+    verifyReceiptSignature,
+    receiptPayloadHash,
+    canonicalJson,
+    signingFingerprint,
+    SIGNING_DOMAIN,
+} from './context/signing.js';
+export { scanForSecrets, redactSecrets } from './context/secrets.js';
+export {
+    resolveVectorProvider,
+    featureHashProvider,
+    OllamaEmbeddingProvider,
+    OpenAiCompatibleProvider,
+} from './context/embeddings.js';
+export { LocalVectorEncoder, cosineSimilarity } from './context/vectors.js';
+export { createContextServer } from './context/server.js';
+export { ProjectFolderCapture } from './context/project-capture.js';
+export { RecordCapture } from './context/record-capture.js';
+export {
+    parseCalendarSource,
+    parseEmailSource,
+    parseBrowserSource,
+} from './context/capture-parsers.js';
+export { VaultCodec, PlaintextCodec, normalizeKey } from './context/vault-crypto.js';
+export { VaultKeyManager, loadConfiguredVaultKey } from './context/vault-key-manager.js';
+export { evaluateContextVault } from './context/evaluator.js';
+export { evaluateCompilerVault } from './context/compiler-evaluator.js';
+export { backupVault, restoreVault } from './context/backup.js';
+export {
+    AccessPolicy,
+    loadMcpPolicy,
+    listMcpPolicyClients,
+    MCP_CAPABILITIES,
+} from './context/access-policy.js';
+export { AccessAudit, auditEntryHash } from './context/access-audit.js';
+export { ContextCompiler } from './context/compiler.js';
+export {
+    contextRequestSchema,
+    normalizeContextRequest,
+    COMPILER_VERSION,
+    CONTEXT_FORMATS,
+    RETRIEVAL_MODES,
+    PURPOSE_TYPE_AFFINITY,
+} from './context/context-request.js';
+export {
+    EDGE_PREDICATES,
+    ENTITY_KINDS,
+    ensureEntity,
+    findEntity,
+    listEntities,
+    mergeEntities,
+} from './context/graph.js';
+
+// Week 3
+export { CloneArena } from './arena/arena.js';
+export { GhostMode } from './ghost/ghost.js';
+export { ChatMemory } from './rag/memory.js';
+export { createEmbedding } from './rag/embeddings.js';
+export { generateBadge } from './web/badge.js';
+export { DiscordGateway } from './gateway/discord.js';
+export { WhatsAppGateway } from './gateway/whatsapp.js';

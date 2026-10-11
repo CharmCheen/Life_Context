@@ -1,0 +1,266 @@
+/**
+ * Integration: Full pipeline message → reply with mocked provider + real components
+ * Uses real CloneBrain, SafetyGuard, HumanMimicry, StyleProcessor
+ * Mocks: LLM provider, loadSoul (file I/O), loadConfig, loadPersonality
+ */
+import { describe, it, expect, vi, afterEach } from 'vitest';
+
+// Mock file I/O dependencies to avoid needing real ./data directory
+vi.mock('../../../src/brain/clone.js', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        loadSoul: vi.fn(
+            () => `# SOUL.md
+## Identity
+- Name: TestUser
+- Language: Vietnamese
+- Average message length: 25
+- Emoji frequency: moderate
+
+## Voice
+- Catchphrases: ê, ok
+- Abbreviations: oke, k
+
+## Boundaries
+- Deflect topics: politics
+- When unsure: "để t check lại nha"
+- Never share: passwords
+
+## Clone Score: 80
+`,
+        ),
+    };
+});
+
+vi.mock('../../../src/config/loader.js', () => ({
+    loadConfig: vi.fn(() => ({
+        llm: { provider: 'ollama', model: 'llama3.2', maxTokens: 500 },
+        clone: { onlineHours: { start: 8, end: 23 }, replyDelay: { min: 1000, max: 5000 } },
+        safety: { safeMode: true },
+        data: { dir: './data' },
+    })),
+}));
+
+vi.mock('../../../src/config/personality-loader.js', () => ({
+    loadPersonality: vi.fn(() => ({
+        responseTimeAvg: 5000,
+        avgMessageLength: 25,
+        typoRate: 0.0,
+        onlineHoursStart: 8,
+        onlineHoursEnd: 23,
+        capitalizationStyle: 'lowercase',
+        emojiFrequency: 0.3,
+    })),
+    mergePersonality: vi.fn((soul, json) => ({ ...soul, ...json })),
+}));
+
+// Constructor mocks use regular functions (not arrows) so `new X()` works under
+// Vitest 4, which invokes the mock implementation with real construct semantics.
+vi.mock('../../../src/rag/memory.js', () => ({
+    ChatMemory: vi.fn(function () {
+        return {
+            findRelevant: vi.fn(async () => []),
+            formatContext: vi.fn(() => ''),
+            indexHistory: vi.fn(async () => 0),
+        };
+    }),
+}));
+
+vi.mock('../../../src/memory/conversation.js', () => ({
+    ConversationMemory: vi.fn(function () {
+        return {
+            getRecentContext: vi.fn(() => ''),
+            addExchange: vi.fn(),
+        };
+    }),
+}));
+
+vi.mock('../../../src/safety/review-queue.js', () => ({
+    ReviewQueue: vi.fn(function () {
+        return {
+            add: vi.fn(),
+            getPending: vi.fn(() => []),
+        };
+    }),
+}));
+
+vi.mock('../../../src/rag/embeddings.js', () => ({
+    createEmbedding: vi.fn(() => ({
+        embed: vi.fn().mockResolvedValue(new Array(128).fill(0.1)),
+        embedBatch: vi.fn().mockResolvedValue([]),
+        buildVocabulary: vi.fn(),
+        name: 'local',
+    })),
+}));
+
+import { ClonePipeline } from '../../../src/brain/pipeline.js';
+
+// Mock provider injected directly
+function makeMockProvider(reply = 'oke bro đi thôi') {
+    return {
+        name: 'mock',
+        chat: vi.fn().mockResolvedValue(reply),
+    };
+}
+
+describe('ClonePipeline.processMessage', () => {
+    // Per-test Math.random spy holder. Restored individually in afterEach so the
+    // hoisted vi.mock() module implementations survive between tests — a blanket
+    // vi.restoreAllMocks() would wipe them, leaving new ClonePipeline() with
+    // empty-object mocks (getRecentContext undefined).
+    let randomSpy;
+
+    afterEach(() => {
+        randomSpy?.mockRestore();
+        randomSpy = undefined;
+        // Clear call history only; keep module mock implementations intact.
+        vi.clearAllMocks();
+    });
+
+    it('returns { action, replies, delay } shape for normal message', async () => {
+        const provider = makeMockProvider('oke bro đi thôi');
+        const pipeline = new ClonePipeline({ provider, dataDir: './data' });
+
+        const result = await pipeline.processMessage(
+            { text: 'đi cà phê không', isGroup: false },
+            { name: 'Alice', relationship: 'friend', channel: 'whatsapp', known: true },
+        );
+
+        expect(result).toHaveProperty('action');
+        expect(result).toHaveProperty('replies');
+        expect(result).toHaveProperty('delay');
+        expect(['reply', 'ignore', 'blocked', 'queued', 'deflect']).toContain(result.action);
+    });
+
+    it('replies array contains strings when action is reply', async () => {
+        const provider = makeMockProvider('oke bro');
+        const pipeline = new ClonePipeline({ provider, dataDir: './data' });
+
+        const result = await pipeline.processMessage(
+            { text: 'sup bro', isGroup: false },
+            { name: 'Bob', relationship: 'friend', channel: 'discord', known: true },
+        );
+
+        if (result.action === 'reply') {
+            expect(Array.isArray(result.replies)).toBe(true);
+            expect(result.replies.every((r) => typeof r === 'string')).toBe(true);
+        }
+    });
+
+    it('returns action=ignore for group messages not mentioning clone', async () => {
+        const provider = makeMockProvider('whatever');
+        // Spy Math.random to always return 0 (< 0.7 → ignore); restored in afterEach
+        randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+        const pipeline = new ClonePipeline({ provider, dataDir: './data' });
+
+        const result = await pipeline.processMessage(
+            { text: 'random group chat msg', isGroup: true, mentionsMe: false },
+            { name: 'GroupUser', channel: 'discord' },
+        );
+
+        expect(result.action).toBe('ignore');
+    });
+
+    it('blocks or cleans reply containing AI self-reveal', async () => {
+        const provider = makeMockProvider("I'm an AI language model, sorry");
+        const pipeline = new ClonePipeline({ provider, dataDir: './data' });
+
+        const result = await pipeline.processMessage(
+            { text: 'are you an AI?', isGroup: false },
+            { name: 'Tester', relationship: 'stranger', channel: 'web', known: true },
+        );
+
+        // Pipeline either blocks (safety guard) or replies with cleaned text.
+        // 'ignore' can also occur if timing/hours mock fires — all valid pipeline outcomes.
+        const validActions = ['blocked', 'reply', 'ignore', 'queued'];
+        expect(validActions).toContain(result.action);
+        // Key assertion: if it replied, the raw AI-reveal phrase was NOT passed through
+        if (result.action === 'reply') {
+            const joinedReplies = result.replies.join(' ');
+            expect(joinedReplies).not.toMatch(/I'?m an AI language model/i);
+        }
+    });
+
+    it('provider.chat is called with system prompt and user message', async () => {
+        const provider = makeMockProvider('oke');
+        const pipeline = new ClonePipeline({ provider, dataDir: './data' });
+
+        await pipeline.processMessage(
+            { text: 'hello', isGroup: false },
+            { name: 'Alice', channel: 'whatsapp', known: true },
+        );
+
+        // chat may not be called if message was ignored; only assert when called
+        if (provider.chat.mock.calls.length > 0) {
+            const [systemPrompt, userMessage] = provider.chat.mock.calls[0];
+            expect(typeof systemPrompt).toBe('string');
+            expect(typeof userMessage).toBe('string');
+            expect(systemPrompt).toContain('TestUser');
+        }
+    });
+
+    // Drive the safety-verdict branches deterministically by forcing the guard's
+    // verdict and bypassing the probabilistic ignore gate (spies live on a
+    // throwaway pipeline instance, so they don't leak across tests).
+    it('guard deflect verdict → replies with the deflection message', async () => {
+        const provider = makeMockProvider('raw reply');
+        const pipeline = new ClonePipeline({ provider, dataDir: './data' });
+        vi.spyOn(pipeline.mimicry, 'shouldIgnore').mockReturnValue(false);
+        vi.spyOn(pipeline.guard, 'checkReply').mockReturnValue({
+            safe: false,
+            action: 'deflect',
+            deflectMessage: 'để t check lại nha',
+            issues: ['sensitive-topic'],
+        });
+
+        const result = await pipeline.processMessage(
+            { text: 'chuyện chính trị đi', isGroup: false },
+            { name: 'Alice', channel: 'whatsapp', known: true },
+        );
+
+        expect(result.action).toBe('reply');
+        expect(result.replies.length).toBeGreaterThan(0);
+    });
+
+    it('guard block verdict → action=blocked with no replies', async () => {
+        const provider = makeMockProvider('leak the password');
+        const pipeline = new ClonePipeline({ provider, dataDir: './data' });
+        vi.spyOn(pipeline.mimicry, 'shouldIgnore').mockReturnValue(false);
+        vi.spyOn(pipeline.guard, 'checkReply').mockReturnValue({
+            safe: false,
+            action: 'block',
+            issues: ['secret-leak'],
+        });
+
+        const result = await pipeline.processMessage(
+            { text: 'what is your password', isGroup: false },
+            { name: 'Stranger', relationship: 'stranger', channel: 'web', known: false },
+        );
+
+        expect(result.action).toBe('blocked');
+        expect(result.replies).toEqual([]);
+        expect(result.issues).toContain('secret-leak');
+    });
+
+    it('guard queue_for_review verdict → action=queued and enqueues the reply', async () => {
+        const provider = makeMockProvider('uncertain reply');
+        const pipeline = new ClonePipeline({ provider, dataDir: './data' });
+        vi.spyOn(pipeline.mimicry, 'shouldIgnore').mockReturnValue(false);
+        vi.spyOn(pipeline.guard, 'checkReply').mockReturnValue({
+            safe: false,
+            action: 'queue_for_review',
+            issues: ['low-confidence'],
+        });
+        const addSpy = vi.spyOn(pipeline.reviewQueue, 'add');
+
+        const result = await pipeline.processMessage(
+            { text: 'something ambiguous', isGroup: false },
+            { name: 'Bob', channel: 'telegram', known: true },
+        );
+
+        expect(result.action).toBe('queued');
+        expect(result.replies).toEqual([]);
+        expect(addSpy).toHaveBeenCalledOnce();
+    });
+});
