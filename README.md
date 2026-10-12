@@ -615,3 +615,8 @@ Key documentation:
 ## License
 
 MIT
+## Life Context direction
+
+This repository is being evaluated as a technical base for Life Context, a user-owned personal context library for authorized AI agents. Product plans and research hypotheses are documented in [`docs/life-context/`](docs/life-context/). These documents describe a proposed direction and do not claim that the upstream implementation already satisfies it.
+
+Life Context is based on OpenSelf, licensed under the MIT License. See [`LICENSE`](LICENSE) for the upstream copyright and license terms.
