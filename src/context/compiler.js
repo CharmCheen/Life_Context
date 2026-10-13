@@ -42,7 +42,9 @@ export class ContextCompiler {
         const request = normalizeContextRequest(input);
         const envelope = this._resolveEnvelope(request, options);
         const diagnostics = options.diagnostics === true;
-        const discovered = this._discover(request, envelope, searchFn);
+        const discovered = options.discover
+            ? options.discover(request, this._discoveryOptions(request, envelope))
+            : this._discover(request, envelope, searchFn);
         const deniedProbe = diagnostics ? this._probeDenied(request, envelope, searchFn) : [];
         return this._package(request, envelope, discovered, options, {
             diagnostics,
@@ -375,10 +377,12 @@ export class ContextCompiler {
         const unique = [];
         const duplicates = [];
         for (const memory of ranked) {
-            const textKey = memory.content
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, ' ')
-                .trim();
+            const textKey =
+                memory.content
+                    .normalize('NFKC')
+                    .toLowerCase()
+                    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+                    .trim() || memory.contentHash;
             if (seenHash.has(memory.contentHash) || seenText.has(textKey)) {
                 duplicates.push({
                     memory,
@@ -620,6 +624,9 @@ function renderContext(format, selected, conflicts) {
                 memories: selected.map(({ memory }) => ({
                     id: memory.id,
                     contentHash: memory.contentHash,
+                    epistemicStatus: memory.epistemicStatus,
+                    sourceId: memory.sourceId,
+                    proposedBy: memory.proposedBy,
                     type: memory.type,
                     content: memory.content,
                     summary: memory.summary,
@@ -651,6 +658,9 @@ function renderContext(format, selected, conflicts) {
             const lines = items.map(({ memory }) => {
                 const date = memory.occurredAt || memory.validFrom || memory.createdAt;
                 const flags = [
+                    memory.epistemicStatus
+                        ? `${memory.epistemicStatus} · source:${memory.sourceId} · proposedBy:${memory.proposedBy || 'unknown'}`
+                        : null,
                     memory.temporalStatus !== 'current' ? memory.temporalStatus : null,
                     conflictIds.has(memory.id) ? 'conflict' : null,
                 ]
@@ -667,6 +677,9 @@ function renderContext(format, selected, conflicts) {
     return selected
         .map(({ memory, rendered }) => {
             const markers = [
+                memory.epistemicStatus
+                    ? `${memory.epistemicStatus} · source:${memory.sourceId} · proposedBy:${memory.proposedBy || 'unknown'}`
+                    : null,
                 memory.temporalStatus !== 'current' ? memory.temporalStatus : null,
                 conflictIds.has(memory.id) ? 'conflict' : null,
             ].filter(Boolean);

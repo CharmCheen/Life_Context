@@ -1,14 +1,12 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const CLI = new URL('../../../src/cli/index.js', import.meta.url).pathname.replace(
-    /^\/([A-Za-z]:)/,
-    '$1',
-);
+const CLI = fileURLToPath(new URL('../../../src/cli/index.js', import.meta.url));
 
 /**
  * Real stdio transport coverage: spawn `openself mcp` as a child process and

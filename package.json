@@ -20,6 +20,8 @@
     "./package.json": "./package.json"
   },
   "scripts": {
+    "prototype": "node src/life-context/server.js",
+    "test:prototype": "vitest run tests/unit/life-context.test.js",
     "start": "node src/cli/index.js start",
     "test": "vitest run",
     "test:watch": "vitest",

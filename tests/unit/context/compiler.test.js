@@ -15,6 +15,15 @@ describe('context compiler', () => {
     let store;
     afterEach(() => store?.close());
 
+    it('keeps distinct Chinese and punctuation-only records without empty-key collapse', () => {
+        store = new ContextStore({ dbPath: ':memory:' });
+        for (const content of ['我在复旦读研', '我使用本地文件管理项目', '!!!', '???']) {
+            store.remember({ content, scope: 'project/atlas' });
+        }
+        const pkg = store.compileContext({ explain: true }, { policy: policy() });
+        expect(pkg.memories).toHaveLength(4);
+    });
+
     it('compiles a bounded package with provenance and a v2 receipt', () => {
         store = new ContextStore({ dbPath: ':memory:' });
         store.remember({

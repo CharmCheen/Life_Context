@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Life Context · 个人上下文库</title>
+        <link rel="stylesheet" href="/style.css" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <a class="brand" href="#overview"
+                ><span class="mark">lc</span
+                ><span>Life Context<small>PERSONAL CONTEXT LIBRARY</small></span></a
+            >
+            <div class="vault-label">
+                <span class="status-dot"></span> 本地演示库 <span class="demo">DEMO</span>
+            </div>
+            <nav aria-label="主导航">
+                <button data-page="overview" class="active"><span>◫</span> 我的上下文</button>
+                <button data-page="inbox"><span>▤</span> 待审变更 <b id="inbox-count">1</b></button>
+                <button data-page="sources"><span>⌁</span> 来源记录</button>
+                <button data-page="context"><span>↗</span> 给 Agent 的上下文</button>
+                <button data-page="history"><span>◷</span> 变化记录</button>
+                <button data-page="settings"><span>⚙</span> 接入与迁移</button>
+            </nav>
+            <div class="sidebar-bottom">
+                <div class="small-avatar">演</div>
+                <div>演示用户<small>合成样例 · 仅存本机</small></div>
+            </div>
+        </aside>
+        <div class="workspace">
+            <header>
+                <span id="breadcrumb">个人上下文 / 概览</span>
+                <div>
+                    <span class="status-dot"></span> 本机已连接
+                    <span class="version" id="version-label">v6</span>
+                </div>
+            </header>
+            <main id="main" tabindex="-1"></main>
+            <footer>
+                Life Context 原型 · 所有资料均为合成样例 <span>基于 OpenSelf / MIT</span>
+            </footer>
+        </div>
+        <dialog id="detail-dialog">
+            <div id="dialog-content"></div>
+            <button class="button subtle" id="close-dialog">关闭</button>
+        </dialog>
+        <div id="toast" role="status" aria-live="polite"></div>
+        <script type="module" src="/app.js"></script>
+    </body>
+</html>
